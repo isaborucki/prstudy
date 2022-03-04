@@ -188,11 +188,15 @@ saveRDS(revs, file = "data/revs.rds")
 
 ## Get all the journals that reviewers reviewed for
 
+this takes a long time
+
 ```{r, eval = F}
 source("get_journos.R")
 ```
 
 ## Combine data
+
+This works without any of the prior code
 
 ```{r}
 reviews_dat <- readRDS("data/reviews_dat.rds")
@@ -200,21 +204,21 @@ revs <- readRDS("data/revs.rds")
 
 
 node_weights <- bind_rows(
-revs %>% 
-  left_join(reviews_dat) %>%
-  group_by(reviewer) %>% 
-  summarize(num_records = sum(num_records, na.rm = T)) %>% 
-  arrange(desc(num_records)) %>% 
-  rename(value = num_records,
-         label = reviewer),
+  revs %>% 
+    left_join(reviews_dat) %>%
+    group_by(reviewer) %>% 
+    summarize(num_records = sum(num_records, na.rm = T)) %>% 
+    arrange(desc(num_records)) %>% 
+    rename(value = num_records,
+           label = reviewer),
 
-revs %>% 
-  left_join(reviews_dat) %>%
-  group_by(name) %>% 
-  summarize(num_records = sum(num_records, na.rm = T)) %>% 
-  arrange(desc(num_records)) %>% 
-  rename(value = num_records,
-         label = name)  
+  revs %>% 
+    left_join(reviews_dat) %>%
+    group_by(name) %>% 
+    summarize(num_records = sum(num_records, na.rm = T)) %>% 
+    arrange(desc(num_records)) %>% 
+    rename(value = num_records,
+           label = name)  
 ) %>% 
   mutate(value = value/3)
 ```
