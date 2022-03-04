@@ -13,6 +13,7 @@ pacman::p_load(tidyverse, rpublons)
 ## Get Reviewer Data
 
 ```{r, eval = F}
+## top level function to get reviewers 
 get_reviewers <- function(q, extend = "pubs_revs_edits") {
   
 
@@ -94,7 +95,7 @@ get_reviewers <- function(q, extend = "pubs_revs_edits") {
           })        
     } else if (extend == "pubs_revs_edits"){
         
-        cat("More than 250 reviewers. Reordering data.\n\n")
+        cat("More than 250 reviewers. Reordering data to get more reviewers.\n\n")
         
       fin <- c("num_reviews", "-num_reviews", "num_editor_records", "-num_editor_records", "name", "-name") %>% 
             map_dfr(~{
