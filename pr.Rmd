@@ -1,0 +1,309 @@
+---
+title: "Get Data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(tidyverse, rpublons)
+
+```
+
+## Get Reviewer Data
+
+```{r, eval = F}
+get_reviewers <- function(q, extend = "pubs_revs_edits") {
+  
+
+  
+  res <- publons("GET", "researcher", query = q)
+  
+  reviewer_count <- res %>% 
+    jsonlite::fromJSON() %>% .$count
+
+  
+  ## if there are more than 250 reviewers filter by name
+  if(reviewer_count > 250){
+      
+      
+       
+    if(extend == "letter_cntry"){
+        cat("More than 250 reviewers. Filtering by starting letters of name.\n\n")
+        
+        fin <- expand_grid(l1 = letters, l2 = letters) %>% 
+          mutate(letters = paste0(paste0(l1, l2))) %>% 
+          .$letters %>% 
+          map_dfr(~{
+            
+            l <- .x
+            
+            res_letter <- publons("GET", "researcher", query = rlist::list.append(q, name = l))
+            
+            reviewer_count_letter <- res_letter %>% 
+              jsonlite::fromJSON() %>% .$count
+    
+              if(reviewer_count_letter == 0){
+                
+                internal_fin <- NULL
+                
+              } else if(reviewer_count_letter <= 250){
+              # if there are less than 250 reviewers per name just be satisfied with that
+                
+                cat(paste0("Letters: ", l, " Reviewers: ", reviewer_count_letter, "\n"))
+                
+                 internal_fin <- res_letter %>%
+                   jsonlite::fromJSON()   %>% 
+                   .$results %>% 
+                   unnest(cols = c(rank, reviewer, institution, 
+                                   editorRecords, numReviews, 
+                                   numPublications),
+                      names_sep = "_")      
+                 
+              } else if(reviewer_count_letter > 250) {
+                
+                cat("\n\nMore than 250 reviewers. Filtering by country.\n\n")
+                
+                internal_fin <- 1:179 %>% 
+                  map_dfr(~{
+                    
+                     res_letter_cntry <- publons("GET", "researcher", query = rlist::list.append(q, name = l, country=.x))
+                     
+                     reviewer_count_letter_cntry <- res_letter_cntry %>% 
+                       jsonlite::fromJSON() %>% .$count
+                     
+                     if(reviewer_count_letter_cntry != 0){
+                       
+                        cat(paste0("Letters: ", l, " Country: ", .x, " Reviewers: ", reviewer_count_letter_cntry, "\n"))
+                        
+                        
+                        internal_fin <- res_letter_cntry %>% 
+                           jsonlite::fromJSON() %>%
+                           .$results %>% 
+                           unnest(cols = c(rank, reviewer, institution, 
+                                     editorRecords, numReviews, 
+                                     numPublications),
+                                 names_sep = "_")   
+                      
+                     }
+                    
+                  })
+              }
+            
+            return(internal_fin)
+          })        
+    } else if (extend == "pubs_revs_edits"){
+        
+        cat("More than 250 reviewers. Reordering data.\n\n")
+        
+      fin <- c("num_reviews", "-num_reviews", "num_editor_records", "-num_editor_records", "name", "-name") %>% 
+            map_dfr(~{
+                publons("GET", "researcher", query = rlist::list.append(q, order_by=.x)) %>% 
+                           jsonlite::fromJSON() %>%
+                           .$results %>% 
+                           unnest(cols = c(rank, reviewer, institution, 
+                                     editorRecords, numReviews, 
+                                     numPublications),
+                                 names_sep = "_")   
+            })
+            
+        
+    }
+    
+
+    ## if there are less than 250 reviewers 
+    } else {
+    fin <- res %>%
+        jsonlite::fromJSON()   %>% 
+        .$results %>% 
+        unnest(cols = c(rank, reviewer, institution, 
+                        editorRecords, numReviews, 
+                        numPublications),
+           names_sep = "_")    
+  }
+  
+  fin <- fin[,names(fin)!="institution"] %>% 
+    distinct(reviewer_url, .keep_all = T) %>% 
+    rename_all(~str_remove_all(.x, "_name")) %>% 
+    separate(reviewer_url, "/", into = c("trash1", "trash2", "reviewer_id", "short_name", "trash3"), remove = F) %>% 
+    select(-contains("trash")) %>% 
+    janitor::clean_names()  
+  
+  
+  cat("\n\n===DONE==\n\n")
+  
+  return(fin)
+}
+
+# debugonce(get_reviewers)
+
+pubs_res <- get_reviewers(q = list(research_field=11957, research_field = 993), extend = "pubs_revs_edits")
+letter_res <- get_reviewers(q = list(research_field=11957, research_field = 993), extend = "letter_cntry")
+
+
+revs <- pubs_res %>% 
+    bind_rows(letter_res) %>% 
+    distinct(reviewer_url, .keep_all = T) 
+
+
+saveRDS(revs, file = "data/revs.rds")
+
+
+# publons("GET", "researcher", query = list(research_field=11957, research_field = 993, order_by="num_reviews", name = "ly", country=1))
+# publons("GET", "researcher", query = list(research_field=11957, research_field = 993, order_by="num_reviews", name = "ly"))
+# 
+# 
+# rlist::list.append(list(research_field=11957, research_field = 993, order_by="num_reviews"), name = "ly") 
+
+```
+
+### Slice the data differently to maximize number of reviewers we can retrieve
+
+```{r, eval = F}
+# "num_reviews", "-num_reviews", "num_editor_records", "-num_editor_records", "name", "-name"
+library(rpublons)
+letter_res2 <- get_reviewers(q = list(research_field=11957, research_field = 993, order_by = "num_reviews"), extend = "letter_cntry")
+letter_res3 <- get_reviewers(q = list(research_field=11957, research_field = 993, order_by = "num_editor_records"), extend = "letter_cntry")
+letter_res4 <- get_reviewers(q = list(research_field=11957, research_field = 993, order_by = "-num_editor_records"), extend = "letter_cntry")
+letter_res5 <- get_reviewers(q = list(research_field=11957, research_field = 993, order_by = "-num_reviews"), extend = "letter_cntry")
+letter_res6 <- get_reviewers(q = list(research_field=11957, research_field = 993, order_by = "name"), extend = "letter_cntry")
+letter_res7 <- get_reviewers(q = list(research_field=11957, research_field = 993, order_by = "-name"), extend = "letter_cntry")
+
+
+
+revs <- readRDS("data/revs.rds") %>%
+    bind_rows(letter_res2) %>%
+    bind_rows(letter_res3)  %>% 
+    bind_rows(letter_res4) %>%
+    bind_rows(letter_res5)  %>% 
+    bind_rows(letter_res6) %>%
+    bind_rows(letter_res7)  %>% 
+    distinct(reviewer_url, .keep_all = T) 
+
+saveRDS(revs, file = "data/revs.rds")
+
+```
+
+
+## Get all the journals that reviewers reviewed for
+
+```{r, eval = F}
+source("get_journos.R")
+```
+
+## Combine data
+
+```{r}
+reviews_dat <- readRDS("data/reviews_dat.rds")
+revs <- readRDS("data/revs.rds")
+
+
+node_weights <- bind_rows(
+revs %>% 
+  left_join(reviews_dat) %>%
+  group_by(reviewer) %>% 
+  summarize(num_records = sum(num_records, na.rm = T)) %>% 
+  arrange(desc(num_records)) %>% 
+  rename(value = num_records,
+         label = reviewer),
+
+revs %>% 
+  left_join(reviews_dat) %>%
+  group_by(name) %>% 
+  summarize(num_records = sum(num_records, na.rm = T)) %>% 
+  arrange(desc(num_records)) %>% 
+  rename(value = num_records,
+         label = name)  
+) %>% 
+  mutate(value = value/3)
+```
+
+
+
+
+```{r}
+combined <- revs %>% 
+  left_join(reviews_dat)  %>% 
+  filter(num_records > 3)
+
+# nodes <- tibble(label = c(combined$reviewer, combined$name) %>% unique,
+#                 shape = c(rep("dot", length(unique(combined$reviewer)),
+#                           rep("square", length(unique(combined$name)))))) %>% 
+#   mutate(id = label)
+
+
+
+edges <- combined %>% 
+  select(from = reviewer, to = name, width = num_records) %>% 
+  .[.["from"] < .["to"],] 
+  
+nodes <- edges$from %>% 
+  c(edges$to) %>%
+  unique() %>% 
+  tibble(id = .) %>% 
+  drop_na(id) %>% 
+  mutate(label = id) %>% 
+  mutate(shape = ifelse(label %in% combined$reviewer, "dot", "square")) %>% 
+  mutate(color = ifelse(label %in% combined$reviewer, "lightblue", "green")) %>% 
+  left_join(node_weights)
+```
+
+## Visualize data
+
+
+```{r}
+library(visNetwork)
+
+     visNetwork(nodes, edges, width = "100%")  %>%
+        visEdges(scaling=list(min=8, max=40), smooth=FALSE, color = list(opacity = 0.2, highlight ="lightblue")) %>%
+        visNodes(scaling=list(min=5, max=60), 
+                 shapeProperties = list(useImageSize=FALSE, 
+                                        interpolation=FALSE)) %>%
+        visOptions(highlightNearest = list(enabled = T, degree = 1, 
+                                           hover = T, hideColor = 'rgba(200,200,200,0.5)',
+                                           labelOnly=FALSE),
+                   # collapse = TRUE,
+                   nodesIdSelection=TRUE,
+                   selectedBy = "group") %>%
+        visInteraction(hover=TRUE, 
+                       zoomView = TRUE,
+                       navigationButtons = TRUE,
+                       tooltipStyle = 'position: fixed;visibility:hidden;padding: 5px;
+                    font-family: sans-serif;font-size:12px;
+                    font-color:#000000;background-color: #e3fafa;
+                    -moz-border-radius: 3px;-webkit-border-radius: 3px;border-radius: 3px;
+                     border: 0px solid #808074;box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+                     max-width:200px;overflow-wrap: normal') %>%
+        visPhysics(solver = "forceAtlas2Based", 
+                   maxVelocity = 1000,
+                   minVelocity = 25,
+                   timestep = 0.3,
+                   forceAtlas2Based = list(gravitationalConstant = -150),
+                   stabilization = FALSE)  %>%
+        visLayout(randomSeed = 20210720, improvedLayout=TRUE) %>% 
+        # visEvents(type = "once", startStabilizing = "function() {
+        #     this.moveTo({scale:0.1})}") %>%
+        visEvents(hoverEdge = "function(e){
+    this.body.data.edges.update({id: e.edge, font: {size : 7}});
+  }") %>%
+        visEvents(blurEdge = "function(e){
+    this.body.data.edges.update({id: e.edge, font: {size : 0}});
+  }")  %>% visSave(file = "network.html")
+```
+
+
+
+
+```{r}
+combined %>% 
+  distinct(name, institution_image) %>% 
+  count(name, sort = T) %>% 
+  slice(1:20) %>%
+  mutate(name = fct_reorder(name, n)) %>% 
+  ggplot(aes(name, n)) +
+  geom_col(fill = "darkblue") +
+  geom_label(aes(label = n))  +
+  coord_flip() +
+  theme_minimal() +
+  labs(y = "Number of different countries that reviewers are from", x = "")
+```
