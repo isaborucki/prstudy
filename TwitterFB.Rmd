@@ -1,0 +1,45 @@
+---
+title: "Twitter and Facebook List"
+author: "Isabelle Borucki"
+date: "3/23/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Twitter URLs 
+
+In the following, I list some accounts that may be of interest for us to scrape and follow. 
+
+
+### Handles
+ 
+https://twitter.com/GrumpyReviewer2
+https://twitter.com/2Reviewer
+https://twitter.com/_peer_reviewed
+https://twitter.com/NonPeerReviewed
+https://twitter.com/PeerReviewed_
+
+
+### Hashtags
+
+`#peer review`
+
+`#AcademicTwitter`
+
+`#AcademicChatter`
+
+`#thesiswriting`
+
+`#PhDlife`
+
+### Search terms
+
+tbc 
+
+## Facebook
+
+Open FB Group on R2:
+https://www.facebook.com/groups/reviewer2/posts/10158173528310469/
